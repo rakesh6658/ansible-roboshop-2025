@@ -15,5 +15,11 @@
         state: started
         name: rabbitmq-server
         enabled: true  
-        
+    - name: adding user
+      ansible.builtin.shell: rabbitmqctl add_user roboshop roboshop123
+    - name: setting permissions
+      ansible.builtin.shell: rabbitmqctl set_permissions -p / roboshop ".*" ".*" ".*"  
+
+
+
 

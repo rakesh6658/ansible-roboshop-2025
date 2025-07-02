@@ -1,70 +1,89 @@
-- name: installing shipping
+- name: Installing shipping
   hosts: shipping
   become: yes
   tasks:
-  - name: installing maven
-    ansible.builtin.yum:
-      name: maven
-      state: present
-  - name: checking roboshop user exists or not
-    ansible.builtin.command: id roboshop
-    register: output
-    ignore_errors: true
-  - name: printing the output
-    ansible.builtin.debug:
-      msg: "{{output}}"    
-  - name: adding user
-    ansible.builtin.user:
-      name: roboshop
-    when:  output.rc !=0  
-  - name: checking /app directory exists or not
-    ansible.builtin.stat: 
-      path: /app
-    register: output
-  - name: printing output
-    ansible.builtin.debug:
-      msg: "{{output}}"    
-  - name: creating directory
-    ansible.builtin.file:
-      path: /app
-      state: directory
-    when: output.stat.exists == false        
-  - name: Downloading the code to /app directory
-    ansible.builtin.get_url:
-      url: https://roboshop-artifacts.s3.amazonaws.com/shipping-v3.zip 
-      dest: /tmp       
-  - name: unzip to app directory
-    ansible.builtin.unarchive:
-      src: /tmp/shipping-v3.zip
-      dest: /app
-      remote_src: yes  
-  - name: Change the working directory to app and install dependencies
-    ansible.builtin.shell: mvn clean package 
-    args:
-      chdir: /app    
-  - name: move to target directory
-    ansible.builtin.shell: mv target/shipping-1.0.jar shipping.jar
-    args:
-      chdir: /app
-  - name: daemon-reload shipping.systemd_service
-    ansible.builtin.systemd_service:
-      daemon_reload: true
-  - name: starting and enabling shipping
-    ansible.builtin.systemd_service:
-      state: started
-      name: shipping
-      enabled: true
-  - name: installing mysql
-    ansible.builtin.yum:
-      name: mysql
-      state: present     
-  - name: Load Schema
-    ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/schema.sql
-  - name: create app user
-    ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/app-user.sql 
-  - name: loading master data
-    ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/master-data.sql
-  - name: restarting shipping
-    ansible.builtin.service:
-      name: shipping
-      state: restarted  
+    - name: Install Maven
+      ansible.builtin.yum:
+        name: maven
+        state: present
+
+    - name: Check if roboshop user exists
+      ansible.builtin.command: id roboshop
+      register: user_check
+      ignore_errors: true
+
+    - name: Create roboshop user if not exists
+      ansible.builtin.user:
+        name: roboshop
+      when: user_check.rc != 0
+
+    - name: Check if /app directory exists
+      ansible.builtin.stat:
+        path: /app
+      register: app_dir
+
+    - name: Create /app directory if not exists
+      ansible.builtin.file:
+        path: /app
+        state: directory
+      when: not app_dir.stat.exists
+
+    - name: Download shipping code
+      ansible.builtin.get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/shipping-v3.zip
+        dest: /tmp/shipping-v3.zip
+
+    - name: Unzip shipping code to /app
+      ansible.builtin.unarchive:
+        src: /tmp/shipping-v3.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Build shipping.jar using Maven
+      ansible.builtin.shell: mvn clean package
+      args:
+        chdir: /app
+      register: maven_result
+
+    - name: Rename shipping-1.0.jar to shipping.jar
+      ansible.builtin.shell: mv target/shipping-1.0.jar shipping.jar
+      args:
+        chdir: /app
+
+    - name: Deploy shipping.service file
+      ansible.builtin.copy:
+        src: shipping.service
+        dest: /etc/systemd/system/shipping.service
+      notify:
+        - Reload systemd
+        - Restart shipping
+
+    - name: Ensure shipping service is enabled and running
+      ansible.builtin.service:
+        name: shipping
+        state: started
+        enabled: yes
+
+    - name: Install MySQL client
+      ansible.builtin.yum:
+        name: mysql
+        state: present
+
+    - name: Load DB schema
+      ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/schema.sql
+
+    - name: Create app user
+      ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/app-user.sql
+
+    - name: Load master data
+      ansible.builtin.shell: mysql -h mysql.joindevops.store -uroot -pRoboShop@1 < /app/db/master-data.sql
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.command: systemctl daemon-reload
+      become: yes
+
+    - name: Restart shipping
+      ansible.builtin.service:
+        name: shipping
+        state: restarted
