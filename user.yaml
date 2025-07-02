@@ -1,0 +1,62 @@
+- name: catalouge
+  hosts: user
+  become: yes
+  tasks:
+    - name: disable current module
+      ansible.builtin.command: dnf module disable nodejs -y
+    - name: enable current module
+      ansible.builtin.command: dnf module enable nodejs:20 -y
+    - name: installing nodejs
+      ansible.builtin.yum:
+        name: nodejs
+        state: present
+    - name: checking roboshop user exists or not
+      ansible.builtin.command: id roboshop
+      register: output
+      ignore_errors: true
+    - name: printing the output
+      ansible.builtin.debug:
+        msg: "{{output}}"    
+    - name: adding user
+      ansible.builtin.user:
+        name: roboshop
+      when:  output.rc !=0 
+    - name: checking /app directory exists or not
+      ansible.builtin.stat: 
+        path: /app
+      register: output
+    - name: printing output
+      ansible.builtin.debug:
+        msg: "{{output}}"    
+    - name: creating directory
+      ansible.builtin.file:
+        path: /app
+        state: directory
+      when: output.stat.exists == false  
+    - name: Downloading the code to /app directory
+      ansible.builtin.get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/user-v3.zip 
+        dest: /tmp       
+    - name: unzip to app directory
+      ansible.builtin.unarchive:
+        src: /tmp/user-v3.zip
+        dest: /app
+        remote_src: yes
+    - name: Change the working directory to app and install dependencies
+      ansible.builtin.shell: npm install
+      args:
+        chdir: /app
+    - name: copy user.service
+      ansible.builtin.copy:
+        src: user.service
+        dest: /etc/systemd/system/user.service
+    - name: daemon-reload user.systemd_service
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+    - name: starting and enabling user
+      ansible.builtin.systemd_service:
+        state: started
+        name: user
+        enabled: true   
+    
+       
