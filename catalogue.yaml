@@ -39,7 +39,7 @@
         dest: /tmp       
     - name: unzip to app directory
       ansible.builtin.unarchive:
-        src: /tmp/catalogue.zip
+        src: /tmp/catalogue-v3.zip
         dest: /app
         remote_src: yes
     - name: Change the working directory to app and install dependencies
