@@ -46,13 +46,13 @@
     ansible.builtin.shell: mv target/shipping-1.0.jar shipping.jar
     args:
       chdir: /app
-  - name: daemon-reload cart.systemd_service
+  - name: daemon-reload shipping.systemd_service
     ansible.builtin.systemd_service:
       daemon_reload: true
-  - name: starting and enabling cart
+  - name: starting and enabling shipping
     ansible.builtin.systemd_service:
       state: started
-      name: cart
+      name: shipping
       enabled: true
   - name: installing mysql
     ansible.builtin.yum:
