@@ -10,11 +10,6 @@
       ansible.builtin.yum:
         name: nginx
         state: present  
-    - name: starting and enabling nginx
-      ansible.builtin.systemd_service:
-        state: started
-        name: nginx
-        enabled: true     
     - name: Remove contents of /usr/share/nginx/html
       ansible.builtin.file:
         path: /usr/share/nginx/html
@@ -37,6 +32,11 @@
       ansible.builtin.copy:
         src: nginx.conf
         dest: /etc/nginx/nginx.conf
+    - name: starting and enabling nginx
+      ansible.builtin.systemd_service:
+        state: started
+        name: nginx
+        enabled: true         
     - name: Restart nginx
       ansible.builtin.service:
         name: nginx
